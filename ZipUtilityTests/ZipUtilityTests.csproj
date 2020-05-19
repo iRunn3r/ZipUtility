@@ -46,15 +46,15 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ZipUtility.csproj">
-      <Project>{978ae7fb-c628-4c53-b619-ebfeb9bc2c42}</Project>
-      <Name>ZipUtility</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <Content Include="Resources\test.zip">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ZipUtility\ZipUtility.csproj">
+      <Project>{978ae7fb-c628-4c53-b619-ebfeb9bc2c42}</Project>
+      <Name>ZipUtility</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

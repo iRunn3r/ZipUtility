@@ -99,9 +99,10 @@ namespace ZipUtility
 
         public ZipBundle(string path)
         {
+            m_ZipStream = File.Open(path, FileMode.Open);
+
             ValidateZip();
 
-            m_ZipStream = File.Open(path, FileMode.Open);
             FullName = path;
             Length = new FileInfo(path).Length;
 

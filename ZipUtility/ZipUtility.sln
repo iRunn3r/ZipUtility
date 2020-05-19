@@ -2,7 +2,7 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtility", "ZipUtility.csproj", "{978AE7FB-C628-4C53-B619-EBFEB9BC2C42}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtilityTests", "ZipUtilityTests\ZipUtilityTests.csproj", "{5480D9B8-DAE5-49CD-81B3-FA26A80913E1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZipUtilityTests", "..\ZipUtilityTests\ZipUtilityTests.csproj", "{5480D9B8-DAE5-49CD-81B3-FA26A80913E1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
