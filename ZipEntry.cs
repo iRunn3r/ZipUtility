@@ -1,14 +1,12 @@
-using System.IO;
-
 namespace ZipUtility
 {
     public class ZipEntry
     {
         public string Path { get; }
-        public long CompressedSize { get; }
-        public long UncompressedSize { get; }
+        public uint CompressedSize { get; }
+        public uint UncompressedSize { get; }
 
-        internal ZipEntry(string path, long compressedSize, long uncompressedSize)
+        internal ZipEntry(string path, uint compressedSize, uint uncompressedSize)
         {
             Path = path;
             CompressedSize = compressedSize;

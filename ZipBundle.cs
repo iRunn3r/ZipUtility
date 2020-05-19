@@ -1,83 +1,148 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System;
 
 namespace ZipUtility
 {
-    public class ZipBundle
+    internal enum Markers
     {
-        public string Path { get; }
+        EntryCount = 10,
+        CentralDirectoryRecord = 16,
+        CompressedSize = 20,
+        UncompressedSize = 24,
+        NameLength = 28,
+        ExtraLength = 30,
+        CommentLength = 32,
+        Name = 46
+    }
+
+    public class ZipBundle : IDisposable
+    {
+        public string FullName { get; }
         public long Length { get; }
         public List<ZipEntry> Entries { get; }
 
+        private const int k_EndOfCentralDirectoryMarker = 101010256;
+        private readonly FileStream m_ZipStream;
+        private long m_EndOfCentralDirectoryOffset;
+        private long EndOfCentralDirectoryOffset
+        {
+            get
+            {
+                if (m_EndOfCentralDirectoryOffset == 0)
+                    m_EndOfCentralDirectoryOffset = FindEndOfCentralDirectoryOffset();
+                return m_EndOfCentralDirectoryOffset;
+            }
+        }
+
+        private long FindEndOfCentralDirectoryOffset()
+        {
+            var marker = BitConverter.GetBytes(k_EndOfCentralDirectoryMarker);
+            for (var offset = 4; offset <= m_ZipStream.Length; offset++)
+            {
+                m_ZipStream.Seek(-offset, SeekOrigin.End);
+                var sizeBytes = new byte[4];
+                m_ZipStream.Read(sizeBytes, 0, 4);
+                if (!sizeBytes.SequenceEqual(marker))
+                    continue;
+                m_ZipStream.Seek(-4, SeekOrigin.Current);
+                return m_ZipStream.Position;
+            }
+
+            throw new Exception("Archive invalid - could not find end-of-central-directory marker.");
+        }
+
+        private int GetArchiveEntryCount()
+        {
+            SeekFromStart(EndOfCentralDirectoryOffset + (int)Markers.EntryCount);
+            return ReadUShort();
+        }
+
+        private long GetCentralDirectoryOffset()
+        {
+            SeekFromStart(EndOfCentralDirectoryOffset + (int)Markers.CentralDirectoryRecord);
+            return ReadUInt();
+        }
+
+        private byte[] GetBytes(int length)
+        {
+            var resultBytes = new byte[length];
+            m_ZipStream.Read(resultBytes, 0, length);
+            return resultBytes;
+        }
+
+        private ushort ReadUShort()
+        {
+            return BitConverter.ToUInt16(GetBytes(2), 0);
+        }
+
+        private uint ReadUInt()
+        {
+            return BitConverter.ToUInt32(GetBytes(4), 0);
+        }
+
+        private string ReadString(int length)
+        {
+            return System.Text.Encoding.Default.GetString(GetBytes(length));
+        }
+
+        private void ValidateZip()
+        {
+            FindEndOfCentralDirectoryOffset();
+        }
+
+        private void SeekFromStart(long offset)
+        {
+            m_ZipStream.Seek(offset, SeekOrigin.Begin);
+        }
+
         public ZipBundle(string path)
         {
-            // add a check for these
-            Path = path;
+            ValidateZip();
+
+            m_ZipStream = File.Open(path, FileMode.Open);
+            FullName = path;
             Length = new FileInfo(path).Length;
-            var eocdMarker = BitConverter.GetBytes(101010256);
-            using (var stream = File.Open(path, FileMode.Open))
+
+            var entryCount = GetArchiveEntryCount();
+            var recordStart = GetCentralDirectoryOffset();
+            SeekFromStart(recordStart);
+            Entries = new List<ZipEntry>();
+            for (var _ = 0; _ < entryCount; _++)
             {
-                // Seek to beginning of "end of central directory record" (EOCD)
-                for (var offset = 4; offset <= stream.Length; offset++)
-                {
-                    stream.Seek(-offset, SeekOrigin.End);
-                    var sizeBytes = new byte[4];
-                    stream.Read(sizeBytes, 0, 4);
-                    if (!sizeBytes.SequenceEqual(eocdMarker))
-                        continue;
-                    stream.Seek(-4, SeekOrigin.Current);
-                    break;
+                SeekFromStart(recordStart + (int)Markers.CompressedSize);
+                var compressedSize = ReadUInt();
 
-                }
+                SeekFromStart(recordStart + (int)Markers.UncompressedSize);
+                var uncompressedSize = ReadUInt();
 
-                // Get number of archive entries
-                stream.Seek(10, SeekOrigin.Current);
-                var entryCountBytes = new byte[2];
-                stream.Read(entryCountBytes, 0, 2);
-                var cdRecordCount = BitConverter.ToInt16(entryCountBytes, 0);
+                SeekFromStart(recordStart + (int)Markers.NameLength);
+                var nameLength = ReadUShort();
 
-                // Seek to CDR
-                stream.Seek(4, SeekOrigin.Current);
-                var cdrOffsetBytes = new byte[4];
-                stream.Read(cdrOffsetBytes, 0, 4);
-                var cdrOffset = BitConverter.ToInt32(cdrOffsetBytes, 0);
-                stream.Seek(cdrOffset, SeekOrigin.Begin);
-                
-                Entries = new List<ZipEntry>(cdRecordCount);
-                for (var _ = 0; _ < cdRecordCount; _++)
-                {
-                    stream.Seek(20, SeekOrigin.Current);
-                    var compressedSizeBytes = new byte[4];
-                    stream.Read(compressedSizeBytes, 0, 4);
-                    var compressedSize = BitConverter.ToInt32(compressedSizeBytes, 0);
-                    var uncompressedSizeBytes = new byte[4];
-                    stream.Read(uncompressedSizeBytes, 0, 4);
-                    var uncompressedSize = BitConverter.ToInt32(uncompressedSizeBytes, 0);
-                    var nameLengthBytes = new byte[2];
-                    stream.Read(nameLengthBytes, 0, 2);
-                    var nameLength = BitConverter.ToInt16(nameLengthBytes, 0);
-                    var extraLengthBytes = new byte[2];
-                    stream.Read(extraLengthBytes, 0, 2);
-                    var extraLength = BitConverter.ToInt16(extraLengthBytes, 0);
-                    var commentLengthBytes = new byte[2];
-                    stream.Read(commentLengthBytes, 0, 2);
-                    var commentLength = BitConverter.ToInt16(commentLengthBytes, 0);
-                    stream.Seek(12, SeekOrigin.Current);
-                    var nameBytes = new byte[nameLength];
-                    stream.Read(nameBytes, 0, nameLength);
-                    var entryName = System.Text.Encoding.Default.GetString(nameBytes);
-                    stream.Seek(extraLength + commentLength, SeekOrigin.Current);
+                SeekFromStart(recordStart + (int)Markers.ExtraLength);
+                var extraLength = ReadUInt();
 
-                    Entries.Add(new ZipEntry(entryName, compressedSize, uncompressedSize));
-                }
+                SeekFromStart(recordStart + (int)Markers.CommentLength);
+                var commentLength = ReadUShort();
+
+                SeekFromStart(recordStart + (int)Markers.Name);
+                var name = ReadString(nameLength);
+
+                Entries.Add(new ZipEntry(name, compressedSize, uncompressedSize));
+
+                recordStart = recordStart + (int) Markers.Name + nameLength + extraLength + commentLength;
             }
         }
 
         public override string ToString()
         {
-            return Path;
+            return FullName;
+        }
+
+        public void Dispose()
+        {
+            m_ZipStream.Close();
         }
     }
 }
