@@ -55,46 +55,40 @@ namespace ZipUtility
 
         private int GetArchiveEntryCount()
         {
-            SeekFromStart(EndOfCentralDirectoryOffset + (int)Markers.EntryCount);
-            return ReadUShort();
+            return ReadUShort(EndOfCentralDirectoryOffset + (int)Markers.EntryCount);
         }
 
         private long GetCentralDirectoryOffset()
         {
-            SeekFromStart(EndOfCentralDirectoryOffset + (int)Markers.CentralDirectoryRecord);
-            return ReadUInt();
+            return ReadUInt(EndOfCentralDirectoryOffset + (int)Markers.CentralDirectoryRecord);
         }
 
-        private byte[] GetBytes(int length)
+        private byte[] GetBytes(long position, int length)
         {
+            m_ZipStream.Seek(position, SeekOrigin.Begin);
             var resultBytes = new byte[length];
             m_ZipStream.Read(resultBytes, 0, length);
             return resultBytes;
         }
 
-        private ushort ReadUShort()
+        private ushort ReadUShort(long position)
         {
-            return BitConverter.ToUInt16(GetBytes(2), 0);
+            return BitConverter.ToUInt16(GetBytes(position, 2), 0);
         }
 
-        private uint ReadUInt()
+        private uint ReadUInt(long position)
         {
-            return BitConverter.ToUInt32(GetBytes(4), 0);
+            return BitConverter.ToUInt32(GetBytes(position, 4), 0);
         }
 
-        private string ReadString(int length)
+        private string ReadString(long position, int length)
         {
-            return System.Text.Encoding.Default.GetString(GetBytes(length));
+            return System.Text.Encoding.Default.GetString(GetBytes(position, length));
         }
 
         private void ValidateZip()
         {
             FindEndOfCentralDirectoryOffset();
-        }
-
-        private void SeekFromStart(long offset)
-        {
-            m_ZipStream.Seek(offset, SeekOrigin.Begin);
         }
 
         public ZipBundle(string path)
@@ -108,30 +102,16 @@ namespace ZipUtility
 
             var entryCount = GetArchiveEntryCount();
             var recordStart = GetCentralDirectoryOffset();
-            SeekFromStart(recordStart);
             Entries = new List<ZipEntry>();
             for (var _ = 0; _ < entryCount; _++)
             {
-                SeekFromStart(recordStart + (int)Markers.CompressedSize);
-                var compressedSize = ReadUInt();
-
-                SeekFromStart(recordStart + (int)Markers.UncompressedSize);
-                var uncompressedSize = ReadUInt();
-
-                SeekFromStart(recordStart + (int)Markers.NameLength);
-                var nameLength = ReadUShort();
-
-                SeekFromStart(recordStart + (int)Markers.ExtraLength);
-                var extraLength = ReadUInt();
-
-                SeekFromStart(recordStart + (int)Markers.CommentLength);
-                var commentLength = ReadUShort();
-
-                SeekFromStart(recordStart + (int)Markers.Name);
-                var name = ReadString(nameLength);
-
+                var compressedSize = ReadUInt(recordStart + (int)Markers.CompressedSize);
+                var uncompressedSize = ReadUInt(recordStart + (int)Markers.UncompressedSize);
+                var nameLength = ReadUShort(recordStart + (int)Markers.NameLength);
+                var extraLength = ReadUShort(recordStart + (int)Markers.ExtraLength);
+                var commentLength = ReadUShort(recordStart + (int)Markers.CommentLength);
+                var name = ReadString(recordStart + (int)Markers.Name, nameLength);
                 Entries.Add(new ZipEntry(name, compressedSize, uncompressedSize));
-
                 recordStart = recordStart + (int) Markers.Name + nameLength + extraLength + commentLength;
             }
         }
